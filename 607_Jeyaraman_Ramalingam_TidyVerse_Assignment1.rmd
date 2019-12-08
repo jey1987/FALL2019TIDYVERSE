@@ -1,0 +1,108 @@
+---
+title: "607_Jeyaraman_Ramalingam_Tidyverse_Assignment1"
+author: "Jeyaraman Ramalingam"
+date: "12/8/2019"
+output: 
+  html_document:
+    df_print: paged
+---
+## Tidyverse Assignment 1 {.tabset .tabset-pills}
+
+### Initiate Libraries
+The following Libraries are referenced for completing the assignment
+
+1. DPLYR
+2. TIDYVERSE
+3. USMAP
+4. GGPLOT2
+5. DATA.TABLE
+
+```{r setup, include=FALSE,eval=TRUE}
+library(dplyr)
+library(tidyverse)
+library(usmap)
+library(ggplot2)
+library(data.table)
+```
+
+### Input Brewery Dataset
+
+This dataset is from kaggle.com and provides insight on the breweries exist across United States. Below are several analysis performed using the dataset.
+
+1. State wise count of breweries
+2. Number of Micro breweries across US
+3. Number of Contract breweries across US
+4. Breweries operate across US
+
+```{r input_brew,eval=TRUE}
+brew_df <- data.table(read.csv("https://raw.githubusercontent.com/jey1987/DATA607/master/JR_TidyVerse_Assignment/breweries_us.csv",sep = ",", stringsAsFactors = F))
+brew_df
+```
+
+### Deriving necessary datasets
+
+```{r derv_dataset,eval=TRUE}
+brew_df <- brew_df %>%
+  mutate(state=replace_na(state,"No State Mentioned")) %>%
+  mutate(type=replace_na(type,"No Type Mentioned")) %>%
+  mutate(state=str_to_sentence(state)) %>%
+  mutate(type=str_to_sentence(type))
+
+brew_df_state_count <- brew_df %>%
+  select(state) %>%
+  group_by(state) %>%
+  count()
+
+brew_df_state_micro <- brew_df %>%
+  select(type,state) %>%
+  filter(type=="Microbrewery") %>%
+  group_by(state) %>%
+  count()
+
+brew_df_state_brewpub <- brew_df %>%
+  select(type,state) %>%
+  filter(type=="Contractbrewery") %>%
+  group_by(state) %>%
+  count()
+brew_df_state_brewname <- brew_df %>%
+  select(brewery_name,state) %>%
+  distinct(brewery_name,state) %>%
+  group_by(brewery_name,state) %>%
+  group_by(brewery_name) %>%
+  dplyr::summarise(cnt=dplyr::n()) %>%
+  filter(cnt>1) 
+
+brew_top5_across_state <- inner_join(brew_df_state_brewname, brew_df, by = "brewery_name")
+```
+### Visualizations
+```{r visual_ds, eval=TRUE}
+plot_usmap(data = brew_df_state_count, values = "n",labels = TRUE) + 
+  scale_fill_continuous(
+    low = "yellow", high = "red", name = "Brewery Count"
+  ) + theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) + labs(title = "Brewery Count by State")
+
+
+plot_usmap(data = brew_df_state_micro, values = "n", labels = TRUE) + 
+  scale_fill_continuous(
+    low = "yellow", high = "red", name = "Micro Brewery Count"
+  ) + theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) + labs(title = "MicroBrewery Count by State")
+
+
+plot_usmap(data = brew_df_state_brewpub, values = "n", labels = TRUE) + 
+  scale_fill_continuous(
+    low = "yellow", high = "red", name = "Contract Brewery Count"
+  ) + theme(legend.position = "right", plot.title = element_text(hjust = 0.5)) + labs(title = "Contract Brewery Count by State")
+
+ggplot(brew_top5_across_state, aes(fill=state , y=cnt, x=brewery_name)) +
+  geom_bar( stat="identity", position="fill") + theme(axis.text.x = element_text(angle=90)) + xlab("Brewing Co.") + ylab("Number of Breweries by State") +
+  ggtitle("Breweries who serve more than one state") 
+
+
+```
+
+
+
+```{r pressure, echo=FALSE}
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
