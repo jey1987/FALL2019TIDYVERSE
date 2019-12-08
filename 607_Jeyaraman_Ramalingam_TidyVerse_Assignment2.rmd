@@ -1,0 +1,203 @@
+---
+title: "Data607 Tidyverse Part 1"
+author: "Sin Ying Wong"
+date: "12/1/2019"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+    toc_collapsed: yes
+    toc_float: yes
+  md_document:
+    variant: markdown_github
+  pdf_document:
+        extra_dependencies: ["geometry", "multicol", "multirow"]
+theme: lumen
+number_sections: yes
+toc_depth: 3
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r package, message=FALSE, warning=FALSE}
+library(tidyverse)
+```
+
+
+# Dataset
+
+The dataset I used is [Border Crossing Entry Data](https://www.kaggle.com/akhilv11/border-crossing-entry-data/data) from <https://www.kaggle.com/datasets>. To reduce size of the data, I select data from year 2002 to 2019.
+
+# readr--read_csv
+
+`read_csv` from `readr` (a sub-package of `tidyverse`) is a faster function to import csv files in terms of performance than the R default function `read.csv`, especially for large data sets.
+```{r data}
+data <- read_csv('https://raw.githubusercontent.com/shirley-wong/Data-607/master/Border_Crossing_Entry_Data_2002-2019.csv')
+data
+```
+
+# Pipe operator %>%
+
+`tidyverse` incorperates the pipe operator `%>%` from the `magrittr` package. The pipe `%>%` help writing code in a way that is easier to read and understand. Ranther than embed the 'input' of a function within the arguments (eg: function(input = data, argument1, argument2...)), the pipe `%>%` seperates 'input' from the function (eg: input %>% function(argument1, argument2...)), and enable recursive application, which means the output of the preceding piece of the code can be used as the input the folloing piece of code. (eg: input %>% function1(argument1, argument2...) %>% function2(argument1, argument2...)).  
+```{r pipe}
+data_mod <- data
+data_mod$Date <- data_mod$Date %>% as.Date('%m/%d/%Y')
+data_mod
+```
+
+# dplyr--mutate
+
+the `mutate` function from `dplyr` (a sub-package in `tidyverse`), adds new variables and preserves existing ones. Here I will use `mutate` as well as the `%>%` to demostrate the operation above again.
+```{r mutate}
+data_mod2 <- data %>%
+  mutate(Date = as.Date(Date, '%m/%d/%Y'))
+
+data_mod2
+```
+
+
+# stringr--str_replace
+
+the `str_replace` function from `stringr` (a sub-package in `tidyverse`), replace content in a string with a defined common pattern by another content. In this example I will use backreferences in regular expressions to retain only the numerical parts in column `Location`.
+```{r str_replace}
+data_mod3 <- data_mod2 %>%
+  mutate(Location = str_replace(Location, '.+\\((.+)\\).*', '\\1'))
+
+data_mod3
+```
+
+
+
+
+# tidyr-separate
+
+the `separate` function from `tidyr` (a sub-package in `tidyverse`), splites one column into multiple columns by defined delimiter. In this example, I will demostrator this function by spliting the `Date` column into `Year`, `Month` and `Date` 3 columns, as well as spliting `Location` column into `Latitude` and `Longitude` 2 columns.
+
+
+```{r separate}
+data_mod4 <- data_mod3 %>%
+  separate(Date,c('Year','Month','Date')) %>%
+  separate(Location, c('Latitute','Longitude'), sep = ' ')
+
+data_mod4
+```
+
+
+
+# dplyr--select
+
+the `select` function from `dplyr` keeps only the variables that are mention, or use minus sign '-' to drop the variables that are mentioned. In this example I will drop the `Port Code` column which contains duplicate information compared to `Port Name` column.
+
+```{r select}
+data_mod5 <-data_mod4 %>%
+  select(-`Port Code`)
+
+data_mod5
+```
+
+# dplyr--filter
+
+the `filter` function from `dplyr` choose rows/cases where conditions are true. In this example I will filter cases in year 2019 only.
+
+```{r filter}
+data_mod6 <- data_mod5 %>%
+  filter(Year == 2019)
+
+data_mod6
+```
+
+
+
+# dplyr--group_by, summarise
+
+the `group_by` and `summarise` functions from `dplyr` are often used together. `group_by` takes an existing table and converts it into a grouped table where operations are performed "by group". `summarise` creates one or more scalar variables summarizing the variables of an existing table, such as calculating column sum, mean, etc.,.
+
+```{r summarise}
+
+data_mod7 <- data_mod6 %>%
+  group_by(`State`) %>%
+  summarise(Ttl_Value = sum(Value))
+
+data_mod7
+
+
+```
+
+# dplyr--arrange & desc
+
+the `arrange` function sorts variables in ascending order. `Desc` function sorts a vector in descending order. Combine these two function allow as to arrange a table in desending order
+
+```{r arrange}
+
+data_mod8 <- data_mod7 %>%
+  arrange(desc(Ttl_Value))
+
+data_mod8
+```
+
+
+# ggplot2 & fct_reorder
+
+the `fct_reorder` function from `forcats` (a sub-package in `tidyverse`) offers a handy solution to reorder values in ggplot functions.
+
+```{r plots}
+data_mod6 %>% 
+  group_by(State) %>%
+  summarise(Sum_Value = sum(Value)) %>%
+  ggplot(aes(x=fct_reorder(State, Sum_Value), y=Sum_Value,fill=Sum_Value,label = Sum_Value))+
+  geom_col()+
+  ylim(0,40000000)+
+  coord_flip()+
+  geom_text(hjust = -0.1, size = 3)+
+  labs(
+    title='Border Crossing Activity Count by State',
+    subtitle = 'Year 2019')+
+  xlab('State')+
+  ylab('Count')
+
+
+data_mod5 %>%
+  group_by(Measure,Year) %>%
+  summarise(Sum_Value = sum(Value)) %>% 
+  mutate(Year = as.numeric(Year)) %>%
+  ggplot() +
+  geom_line(aes(x= Year, y = Sum_Value, colour = Measure))+
+  scale_x_discrete(limits = c(2002:2019))+
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  labs(
+    title = 'Total Border Crossing Activity Count 2002 - 2019',
+    subtitle = 'by Measure')+
+  ylab('Count')+
+  geom_vline(xintercept = 2018, linetype = 'dashed', color = 'steelblue', size = 1)
+
+```
+
+
+# ggplot2 
+
+The below plot is an addition to the existing code and it provides insight on the number of border crossings over years starting from 2010. It also provides how the measures has seen the deflection in the past 9 years.
+
+```{r plot_measure,eval=TRUE}
+data <- separate(data,Date,into=c("Mon","Day","Year"),sep="/")
+data <- separate(data,Year,into=c("Yr_Date","Time"),sep=" ")
+
+data_measure <- data %>%
+  select(Yr_Date,`Port Name`,Measure) %>%
+  group_by(Yr_Date,Measure) %>%
+  dplyr::summarise(cnt=dplyr::n()) %>%
+  arrange(desc(cnt)) %>%
+  filter(Yr_Date>2010)
+
+ggplot(data_measure, aes(fill=Measure , y=cnt, x=Yr_Date)) +
+  geom_bar( stat="identity", position="fill") + 
+  theme(axis.text.x = element_text(angle=90)) + 
+  xlab("Year") + ylab("Number of Border Crossings by Measure") +
+  ggtitle("Border Crossings by Year and by Measure") 
+
+```
+
+
+
+
